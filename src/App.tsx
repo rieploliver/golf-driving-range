@@ -40,35 +40,35 @@ function DataPanel({ data }: { data: any }) {
       <div className="data-grid">
         <div className="data-item">
           <label>Carry</label>
-          <value>{data?.carry || '--'} m</value>
+          <span className="value">{data?.carry || '--'} m</span>
         </div>
         <div className="data-item">
           <label>Total</label>
-          <value>{data?.total || '--'} m</value>
+          <span className="value">{data?.total || '--'} m</span>
         </div>
         <div className="data-item">
           <label>Ball Speed</label>
-          <value>{data?.ballSpeed || '--'} km/h</value>
+          <span className="value">{data?.ballSpeed || '--'} km/h</span>
         </div>
         <div className="data-item">
           <label>Launch Angle</label>
-          <value>{data?.launchAngle || '--'}°</value>
+          <span className="value">{data?.launchAngle || '--'}°</span>
         </div>
         <div className="data-item">
           <label>Spin Rate</label>
-          <value>{data?.spinRate || '--'} rpm</value>
+          <span className="value">{data?.spinRate || '--'} rpm</span>
         </div>
         <div className="data-item">
           <label>Club Speed</label>
-          <value>{data?.clubSpeed || '--'} km/h</value>
+          <span className="value">{data?.clubSpeed || '--'} km/h</span>
         </div>
         <div className="data-item">
           <label>Apex</label>
-          <value>{data?.apex || '--'} m</value>
+          <span className="value">{data?.apex || '--'} m</span>
         </div>
         <div className="data-item">
           <label>Side</label>
-          <value>{data?.side || '--'} m</value>
+          <span className="value">{data?.side || '--'} m</span>
         </div>
       </div>
       
