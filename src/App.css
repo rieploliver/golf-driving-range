@@ -188,7 +188,7 @@ body {
     grid-template-columns: 1fr;
   }
   
-  .data-item value {
+  .data-item .value {
     font-size: 24px;
   }
 }
