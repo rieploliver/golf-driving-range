@@ -38,30 +38,25 @@ function AnimatedGolfBall({ trajectory, onAnimationComplete }: {
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   
-  useEffect(() => {
-    if (trajectory.length === 0) return;
-    
-    let animationSpeed = 20; // Start speed
-    
-    const interval = setInterval(() => {
-      setCurrentIndex(prev => {
-        // Langsamer werden gegen Ende
-        if (prev > trajectory.length * 0.8) {
-          animationSpeed = 40;
-        }
-        
-        const next = prev + 1;
-        if (next >= trajectory.length) {
-          clearInterval(interval);
-          onAnimationComplete();
-          return trajectory.length - 1; // Ball bleibt am Ende
-        }
-        return next;
-      });
-    }, animationSpeed);
-    
-    return () => clearInterval(interval);
-  }, [trajectory, onAnimationComplete]);
+useEffect(() => {
+  if (trajectory.length === 0) return;
+  
+  setCurrentIndex(0); // Reset index bei neuem Shot!
+  
+  const interval = setInterval(() => {
+    setCurrentIndex(prev => {
+      const next = prev + 2;
+      if (next >= trajectory.length) {
+        clearInterval(interval);
+        setTimeout(() => onAnimationComplete(), 100);
+        return trajectory.length - 1;
+      }
+      return next;
+    });
+  }, 30);
+  
+  return () => clearInterval(interval);
+}, [trajectory]); // Nur trajectory als dependency, nicht onAnimationComplete!
 
   if (trajectory.length === 0 || currentIndex >= trajectory.length) {
     if (trajectory.length > 0) {
@@ -383,24 +378,28 @@ function App() {
     };
   }, []);
   
-  const processShot = (data: ShotData) => {
-    if (isAnimating) return;
-    
-    const trajectory = calculateRealisticTrajectory(data);
-    data.trajectory = trajectory;
-    
-    setCurrentShotData(data);
-    setCurrentTrajectory(trajectory);
-    setIsAnimating(true);
-  };
+ const processShot = (data: ShotData) => {
+  if (isAnimating) return;
+  
+  const trajectory = calculateRealisticTrajectory(data);
+  data.trajectory = trajectory;
+  
+  setCurrentShotData(data);
+  setCurrentTrajectory(trajectory);
+  setIsAnimating(true);
+};
   
   const handleAnimationComplete = () => {
-    if (currentShotData) {
-      setShotHistory(prev => [...prev, currentShotData]);
-    }
-    setIsAnimating(false);
-    // Ball bleibt am Ende sichtbar
-  };
+  if (currentShotData && currentShotData.trajectory) {
+    setShotHistory(prev => {
+      const newHistory = [...prev, currentShotData];
+      // Behalte nur die letzten 5 Shots
+      return newHistory.slice(-5);
+    });
+  }
+  setIsAnimating(false);
+  setCurrentTrajectory([]); // Clear für nächsten Shot
+};
   
   // Test Shot Button
   const sendTestShot = () => {
