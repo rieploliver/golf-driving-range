@@ -12,9 +12,9 @@ function GolfBall({ position }: { position: [number, number, number] }) {
       <meshStandardMaterial color="white" />
     </mesh>
   );
+}
 
-
-// 3D Trajectory Line
+// 3D Trajectory Line - Simplified version
 function TrajectoryLine({ points }: { points: THREE.Vector3[] }) {
   if (points.length < 2) return null;
   
@@ -148,7 +148,6 @@ function App() {
   const [ballPosition, setBallPosition] = useState<[number, number, number]>([0, 0, 0]);
   const [trajectory, setTrajectory] = useState<THREE.Vector3[]>([]);
   const [shotData, setShotData] = useState<any>(null);
-  const [ws, setWs] = useState<WebSocket | null>(null);
 
   useEffect(() => {
     // WebSocket connection to your connector
@@ -179,8 +178,6 @@ function App() {
     websocket.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-    
-    setWs(websocket);
     
     return () => {
       websocket.close();
