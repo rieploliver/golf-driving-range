@@ -17,7 +17,8 @@ interface ShotData {
   trajectory?: THREE.Vector3[];
 }
 
-// Animated Golf Ball Component
+
+// Animated Golf Ball Component - Simplified
 function AnimatedGolfBall({ trajectory, onAnimationComplete }: { 
   trajectory: THREE.Vector3[], 
   onAnimationComplete: () => void 
@@ -25,30 +26,32 @@ function AnimatedGolfBall({ trajectory, onAnimationComplete }: {
   const meshRef = useRef<THREE.Mesh>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   
-  useFrame(() => {
-    if (meshRef.current && trajectory.length > 0 && currentIndex < trajectory.length) {
-      const point = trajectory[currentIndex];
-      meshRef.current.position.set(point.x, point.y, point.z);
-      
-      // Realistische Geschwindigkeit - schneller am Anfang, langsamer am Ende
-      const speed = Math.max(1, Math.floor((trajectory.length - currentIndex) / 10));
-      if (currentIndex % speed === 0) {
-        setCurrentIndex(prev => prev + 1);
-      }
-      
-      if (currentIndex >= trajectory.length - 1) {
-        onAnimationComplete();
-        setCurrentIndex(0);
-      }
-    }
-  });
+  useEffect(() => {
+    if (trajectory.length === 0) return;
+    
+    const interval = setInterval(() => {
+      setCurrentIndex(prev => {
+        const next = prev + 2; // Schneller durch Trajectory
+        if (next >= trajectory.length) {
+          clearInterval(interval);
+          onAnimationComplete();
+          return 0;
+        }
+        return next;
+      });
+    }, 30); // 30ms zwischen Updates
+    
+    return () => clearInterval(interval);
+  }, [trajectory, onAnimationComplete]);
 
-  if (trajectory.length === 0) return null;
+  if (trajectory.length === 0 || currentIndex >= trajectory.length) return null;
+  
+  const point = trajectory[currentIndex];
 
   return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[0.05, 16, 16]} />
-      <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.2} />
+    <mesh position={[point.x, point.y, point.z]}>
+      <sphereGeometry args={[0.1, 16, 16]} />
+      <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.5} />
     </mesh>
   );
 }
@@ -307,13 +310,13 @@ function App() {
     setIsAnimating(true);
   };
   
-  const handleAnimationComplete = () => {
-    if (currentShotData) {
-      setShotHistory(prev => [...prev, currentShotData]);
-    }
-    setIsAnimating(false);
-    // Ball bleibt am Ende der Trajectory stehen
-  };
+ const handleAnimationComplete = () => {
+  if (currentShotData) {
+    setShotHistory(prev => [...prev, currentShotData]);
+  }
+  setIsAnimating(false);
+  setCurrentTrajectory([]); // Clear trajectory nach Animation
+};
   
   // Test Shot Button - jedes Mal andere Werte
   const sendTestShot = () => {
