@@ -14,17 +14,17 @@ function GolfBall({ position }: { position: [number, number, number] }) {
   );
 }
 
-// 3D Trajectory Line - Simplified version
+// 3D Trajectory Line - Visible version
 function TrajectoryLine({ points }: { points: THREE.Vector3[] }) {
   if (points.length < 2) return null;
   
   return (
     <group>
       {points.map((point, i) => 
-        i > 0 ? (
+        i % 2 === 0 ? ( // Jeden zweiten Punkt für Performance
           <mesh key={i} position={[point.x, point.y, point.z]}>
-            <sphereGeometry args={[0.01, 8, 8]} />
-            <meshBasicMaterial color="yellow" />
+            <sphereGeometry args={[0.2, 8, 8]} /> {/* Größer: 0.2 statt 0.01 */}
+            <meshBasicMaterial color="yellow" transparent opacity={0.8} />
           </mesh>
         ) : null
       )}
