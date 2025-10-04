@@ -12,18 +12,23 @@ function GolfBall({ position }: { position: [number, number, number] }) {
       <meshStandardMaterial color="white" />
     </mesh>
   );
-}
+
 
 // 3D Trajectory Line
 function TrajectoryLine({ points }: { points: THREE.Vector3[] }) {
   if (points.length < 2) return null;
   
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  
   return (
-    <line geometry={geometry}>
-      <lineBasicMaterial color="yellow" linewidth={2} />
-    </line>
+    <group>
+      {points.map((point, i) => 
+        i > 0 ? (
+          <mesh key={i} position={[point.x, point.y, point.z]}>
+            <sphereGeometry args={[0.01, 8, 8]} />
+            <meshBasicMaterial color="yellow" />
+          </mesh>
+        ) : null
+      )}
+    </group>
   );
 }
 
