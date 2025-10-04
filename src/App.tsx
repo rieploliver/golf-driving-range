@@ -1,39 +1,91 @@
-import React, { useState, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Sky } from '@react-three/drei';
+import React, { useState, useEffect, useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Grid, Sky, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import './App.css';
 
-// 3D Ball Component
-function GolfBall({ position }: { position: [number, number, number] }) {
+// Shot history type
+interface ShotData {
+  carry: number;
+  total: number;
+  ballSpeed: number;
+  launchAngle: number;
+  spinRate: number;
+  clubSpeed: number;
+  apex: number;
+  side: number;
+  trajectory?: THREE.Vector3[];
+}
+
+// Animated Golf Ball Component
+function AnimatedGolfBall({ trajectory, onAnimationComplete }: { 
+  trajectory: THREE.Vector3[], 
+  onAnimationComplete: () => void 
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  
+  useFrame(() => {
+    if (meshRef.current && trajectory.length > 0 && currentIndex < trajectory.length) {
+      const point = trajectory[currentIndex];
+      meshRef.current.position.set(point.x, point.y, point.z);
+      
+      // Realistische Geschwindigkeit - schneller am Anfang, langsamer am Ende
+      const speed = Math.max(1, Math.floor((trajectory.length - currentIndex) / 10));
+      if (currentIndex % speed === 0) {
+        setCurrentIndex(prev => prev + 1);
+      }
+      
+      if (currentIndex >= trajectory.length - 1) {
+        onAnimationComplete();
+        setCurrentIndex(0);
+      }
+    }
+  });
+
+  if (trajectory.length === 0) return null;
+
   return (
-    <mesh position={position}>
-      <sphereGeometry args={[0.02, 16, 16]} />
-      <meshStandardMaterial color="white" />
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[0.05, 16, 16]} />
+      <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.2} />
     </mesh>
   );
 }
 
-// 3D Trajectory Line - Visible version
-function TrajectoryLine({ points }: { points: THREE.Vector3[] }) {
-  if (points.length < 2) return null;
+// Trail Lines Component - zeigt die letzten 5 Schläge
+function TrailLines({ shotHistory }: { shotHistory: ShotData[] }) {
+  const visibleShots = shotHistory.slice(-5); // Letzte 5 Schläge
   
   return (
     <group>
-      {points.map((point, i) => 
-        i % 2 === 0 ? ( // Jeden zweiten Punkt für Performance
-          <mesh key={i} position={[point.x, point.y, point.z]}>
-            <sphereGeometry args={[0.2, 8, 8]} /> {/* Größer: 0.2 statt 0.01 */}
-            <meshBasicMaterial color="yellow" transparent opacity={0.8} />
-          </mesh>
-        ) : null
-      )}
+      {visibleShots.map((shot, index) => {
+        if (!shot.trajectory || shot.trajectory.length < 2) return null;
+        
+        const isLatest = index === visibleShots.length - 1;
+        const opacity = isLatest ? 1.0 : 0.5;
+        const lineWidth = isLatest ? 2 : 1;
+        
+        // Konvertiere Vector3 Array zu Number Array für Line Component
+        const points = shot.trajectory.map(p => [p.x, p.y, p.z]).flat();
+        
+        return (
+          <Line
+            key={`trail-${index}`}
+            points={shot.trajectory}
+            color="#0080ff"
+            lineWidth={lineWidth}
+            transparent
+            opacity={opacity}
+          />
+        );
+      })}
     </group>
   );
 }
 
 // Data Panel Component
-function DataPanel({ data }: { data: any }) {
+function DataPanel({ data }: { data: ShotData | null }) {
   return (
     <div className="data-panel">
       <h2>Shot Data</h2>
@@ -81,23 +133,27 @@ function DataPanel({ data }: { data: any }) {
 }
 
 // 3D Driving Range Component
-function DrivingRange3D({ ballPosition, trajectory }: any) {
+function DrivingRange3D({ currentTrajectory, shotHistory, onAnimationComplete }: {
+  currentTrajectory: THREE.Vector3[];
+  shotHistory: ShotData[];
+  onAnimationComplete: () => void;
+}) {
   return (
     <div className="canvas-container">
-      <Canvas camera={{ position: [0, 5, 10], fov: 60 }}>
+      <Canvas camera={{ position: [5, 10, 20], fov: 60 }}>
         <Sky sunPosition={[100, 20, 100]} />
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         
         <Grid 
-          args={[100, 100]} 
+          args={[300, 300]} 
           cellSize={1}
           cellThickness={0.5}
           cellColor="#6f6f6f"
           sectionSize={10}
           sectionThickness={1}
           sectionColor="#9d9d9d"
-          fadeDistance={100}
+          fadeDistance={300}
           fadeStrength={1}
           followCamera={false}
         />
@@ -122,14 +178,28 @@ function DrivingRange3D({ ballPosition, trajectory }: any) {
           <meshStandardMaterial color="white" />
         </mesh>
         
-        <GolfBall position={ballPosition} />
-        <TrajectoryLine points={trajectory} />
+        <mesh position={[0, 2, -200]}>
+          <cylinderGeometry args={[0.05, 0.05, 4]} />
+          <meshStandardMaterial color="blue" />
+        </mesh>
+        
+        {/* Trail Lines für vorherige Schläge */}
+        <TrailLines shotHistory={shotHistory} />
+        
+        {/* Animierter Golfball */}
+        {currentTrajectory.length > 0 && (
+          <AnimatedGolfBall 
+            trajectory={currentTrajectory} 
+            onAnimationComplete={onAnimationComplete}
+          />
+        )}
         
         <OrbitControls 
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
           maxPolarAngle={Math.PI / 2.1}
+          target={[0, 0, -75]}
         />
       </Canvas>
       
@@ -138,20 +208,73 @@ function DrivingRange3D({ ballPosition, trajectory }: any) {
         <span className="marker">100m</span>
         <span className="marker">150m</span>
         <span className="marker">200m</span>
+        <span className="marker">250m</span>
       </div>
     </div>
   );
 }
 
+// Realistische Ballflug-Berechnung
+function calculateRealisticTrajectory(data: ShotData): THREE.Vector3[] {
+  const points: THREE.Vector3[] = [];
+  const distance = data.carry;
+  const apex = data.apex;
+  const side = data.side;
+  const launchAngle = data.launchAngle * Math.PI / 180;
+  
+  // Physik-Parameter
+  const g = 9.81; // Gravity
+  const v0 = data.ballSpeed / 3.6; // km/h to m/s
+  const vx = v0 * Math.cos(launchAngle);
+  const vy = v0 * Math.sin(launchAngle);
+  
+  // Spin-Effekt (Magnus)
+  const spinEffect = data.spinRate / 10000; // Vereinfacht
+  
+  // Zeit bis zum Aufprall berechnen
+  const totalTime = distance / vx;
+  const steps = 100; // Mehr Punkte für smoothe Kurve
+  
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * totalTime;
+    
+    // Position berechnen
+    const x = side * (t / totalTime) + (side * spinEffect * Math.sin(t * 2)); // Seitliche Kurve
+    const z = -vx * t; // Distanz
+    let y = vy * t - 0.5 * g * t * t; // Höhe mit Gravitation
+    
+    // Sicherstellen dass Ball nicht unter Boden geht
+    y = Math.max(0, y);
+    
+    points.push(new THREE.Vector3(x, y, z));
+  }
+  
+  return points;
+}
+
+// Random Test Shot Generator
+function generateRandomShot(): ShotData {
+  return {
+    carry: 120 + Math.random() * 80, // 120-200m
+    total: 130 + Math.random() * 90, // 130-220m
+    ballSpeed: 180 + Math.random() * 60, // 180-240 km/h
+    launchAngle: 8 + Math.random() * 12, // 8-20 degrees
+    spinRate: 2000 + Math.random() * 2000, // 2000-4000 rpm
+    clubSpeed: 140 + Math.random() * 40, // 140-180 km/h
+    apex: 20 + Math.random() * 20, // 20-40m
+    side: -10 + Math.random() * 20 // -10 to +10m
+  };
+}
+
 // Main App Component
 function App() {
-  const [ballPosition, setBallPosition] = useState<[number, number, number]>([0, 0, 0]);
-  const [trajectory, setTrajectory] = useState<THREE.Vector3[]>([]);
-  const [shotData, setShotData] = useState<any>(null);
+  const [currentTrajectory, setCurrentTrajectory] = useState<THREE.Vector3[]>([]);
+  const [shotHistory, setShotHistory] = useState<ShotData[]>([]);
+  const [currentShotData, setCurrentShotData] = useState<ShotData | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     // WebSocket connection to your connector
-    // Update this URL to match your connector
     const websocket = new WebSocket('ws://localhost:8080');
     
     websocket.onopen = () => {
@@ -161,18 +284,7 @@ function App() {
     websocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('Received data:', data);
-      
-      // Update shot data
-      setShotData(data);
-      
-      // Calculate trajectory (simplified)
-      if (data.carry && data.apex && data.launchAngle) {
-        const points = calculateTrajectory(data);
-        setTrajectory(points);
-        
-        // Animate ball along trajectory
-        animateBall(points);
-      }
+      processShot(data);
     };
     
     websocket.onerror = (error) => {
@@ -184,65 +296,61 @@ function App() {
     };
   }, []);
   
-const calculateTrajectory = (data: any) => {
-  const points: THREE.Vector3[] = [];
-  const distance = data.carry || 100;
-  const apex = data.apex || 30;
-  const side = data.side || 0;
-  
-  // Mehr sichtbare Punkte
-  for (let i = 0; i <= 30; i++) { // 30 statt 50 für größere Abstände
-    const t = i / 30;
-    const x = side * t * 3; // Seitliche Bewegung verstärkt
-    const z = -distance * t;
-    const y = 4 * apex * t * (1 - t) + 0.1; // +0.1 damit nicht im Boden
-    points.push(new THREE.Vector3(x, y, z));
-  }
-  
-  return points;
-};
-  
-  const animateBall = (points: THREE.Vector3[]) => {
-    let index = 0;
-    const animate = () => {
-      if (index < points.length) {
-        const point = points[index];
-        setBallPosition([point.x, point.y, point.z]);
-        index++;
-        setTimeout(animate, 50);
-      }
-    };
-    animate();
+  const processShot = (data: ShotData) => {
+    if (isAnimating) return; // Warte bis aktuelle Animation fertig ist
+    
+    const trajectory = calculateRealisticTrajectory(data);
+    data.trajectory = trajectory;
+    
+    setCurrentShotData(data);
+    setCurrentTrajectory(trajectory);
+    setIsAnimating(true);
   };
   
-  // Test shot button
+  const handleAnimationComplete = () => {
+    if (currentShotData) {
+      setShotHistory(prev => [...prev, currentShotData]);
+    }
+    setIsAnimating(false);
+    // Ball bleibt am Ende der Trajectory stehen
+  };
+  
+  // Test Shot Button - jedes Mal andere Werte
   const sendTestShot = () => {
-    const testData = {
-      carry: 150,
-      total: 165,
-      ballSpeed: 220,
-      launchAngle: 12,
-      spinRate: 2500,
-      clubSpeed: 160,
-      apex: 28,
-      side: -5
-    };
-    setShotData(testData);
-    const points = calculateTrajectory(testData);
-    setTrajectory(points);
-    animateBall(points);
+    if (isAnimating) return; // Nicht während Animation
+    
+    const testData = generateRandomShot();
+    // Runde die Werte für bessere Anzeige
+    testData.carry = Math.round(testData.carry);
+    testData.total = Math.round(testData.total);
+    testData.ballSpeed = Math.round(testData.ballSpeed);
+    testData.launchAngle = Math.round(testData.launchAngle * 10) / 10;
+    testData.spinRate = Math.round(testData.spinRate);
+    testData.clubSpeed = Math.round(testData.clubSpeed);
+    testData.apex = Math.round(testData.apex);
+    testData.side = Math.round(testData.side * 10) / 10;
+    
+    processShot(testData);
   };
 
   return (
     <div className="app">
       <div className="left-panel">
-        <DrivingRange3D ballPosition={ballPosition} trajectory={trajectory} />
-        <button className="test-button" onClick={sendTestShot}>
-          Test Shot
+        <DrivingRange3D 
+          currentTrajectory={currentTrajectory}
+          shotHistory={shotHistory}
+          onAnimationComplete={handleAnimationComplete}
+        />
+        <button 
+          className="test-button" 
+          onClick={sendTestShot}
+          disabled={isAnimating}
+        >
+          {isAnimating ? 'Ball Flying...' : 'Test Shot'}
         </button>
       </div>
       <div className="right-panel">
-        <DataPanel data={shotData} />
+        <DataPanel data={currentShotData} />
       </div>
     </div>
   );
