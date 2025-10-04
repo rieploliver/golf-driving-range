@@ -184,23 +184,23 @@ function App() {
     };
   }, []);
   
-  const calculateTrajectory = (data: any) => {
-    const points: THREE.Vector3[] = [];
-    const distance = data.carry || 100;
-    const apex = data.apex || 30;
-    const side = data.side || 0;
-    
-    // Simple parabolic trajectory
-    for (let i = 0; i <= 50; i++) {
-      const t = i / 50;
-      const x = -side * t;
-      const z = -distance * t;
-      const y = 4 * apex * t * (1 - t);
-      points.push(new THREE.Vector3(x, y, z));
-    }
-    
-    return points;
-  };
+const calculateTrajectory = (data: any) => {
+  const points: THREE.Vector3[] = [];
+  const distance = data.carry || 100;
+  const apex = data.apex || 30;
+  const side = data.side || 0;
+  
+  // Mehr sichtbare Punkte
+  for (let i = 0; i <= 30; i++) { // 30 statt 50 für größere Abstände
+    const t = i / 30;
+    const x = side * t * 3; // Seitliche Bewegung verstärkt
+    const z = -distance * t;
+    const y = 4 * apex * t * (1 - t) + 0.1; // +0.1 damit nicht im Boden
+    points.push(new THREE.Vector3(x, y, z));
+  }
+  
+  return points;
+};
   
   const animateBall = (points: THREE.Vector3[]) => {
     let index = 0;
