@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Grid, Sky, Line } from '@react-three/drei';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Sky, Line, Plane } from '@react-three/drei';
 import * as THREE from 'three';
 import './App.css';
 
@@ -17,46 +17,89 @@ interface ShotData {
   trajectory?: THREE.Vector3[];
 }
 
+// Grass Ground Component
+function GrassGround() {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+      <planeGeometry args={[500, 500]} />
+      <meshStandardMaterial 
+        color="#3a5f3a" 
+        roughness={0.8}
+        metalness={0.2}
+      />
+    </mesh>
+  );
+}
 
-// Animated Golf Ball Component - Simplified
+// Animated Golf Ball Component - Größerer weißer Ball
 function AnimatedGolfBall({ trajectory, onAnimationComplete }: { 
   trajectory: THREE.Vector3[], 
   onAnimationComplete: () => void 
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   
   useEffect(() => {
     if (trajectory.length === 0) return;
     
+    let animationSpeed = 20; // Start speed
+    
     const interval = setInterval(() => {
       setCurrentIndex(prev => {
-        const next = prev + 2; // Schneller durch Trajectory
+        // Langsamer werden gegen Ende
+        if (prev > trajectory.length * 0.8) {
+          animationSpeed = 40;
+        }
+        
+        const next = prev + 1;
         if (next >= trajectory.length) {
           clearInterval(interval);
           onAnimationComplete();
-          return 0;
+          return trajectory.length - 1; // Ball bleibt am Ende
         }
         return next;
       });
-    }, 30); // 30ms zwischen Updates
+    }, animationSpeed);
     
     return () => clearInterval(interval);
   }, [trajectory, onAnimationComplete]);
 
-  if (trajectory.length === 0 || currentIndex >= trajectory.length) return null;
+  if (trajectory.length === 0 || currentIndex >= trajectory.length) {
+    if (trajectory.length > 0) {
+      // Ball am Ende anzeigen
+      const lastPoint = trajectory[trajectory.length - 1];
+      return (
+        <mesh position={[lastPoint.x, Math.max(0.15, lastPoint.y), lastPoint.z]} castShadow>
+          <sphereGeometry args={[0.3, 32, 32]} />
+          <meshStandardMaterial 
+            color="white" 
+            emissive="white" 
+            emissiveIntensity={0.1}
+            roughness={0.3}
+            metalness={0.1}
+          />
+        </mesh>
+      );
+    }
+    return null;
+  }
   
   const point = trajectory[currentIndex];
 
   return (
-    <mesh position={[point.x, point.y, point.z]}>
-      <sphereGeometry args={[0.1, 16, 16]} />
-      <meshStandardMaterial color="white" emissive="white" emissiveIntensity={0.5} />
+    <mesh position={[point.x, Math.max(0.15, point.y), point.z]} castShadow>
+      <sphereGeometry args={[0.3, 32, 32]} />
+      <meshStandardMaterial 
+        color="white" 
+        emissive="white" 
+        emissiveIntensity={0.1}
+        roughness={0.3}
+        metalness={0.1}
+      />
     </mesh>
   );
 }
 
-// Trail Lines Component - zeigt die letzten 5 Schläge
+// Trail Lines Component - Blaue Linien für Flugbahn
 function TrailLines({ shotHistory }: { shotHistory: ShotData[] }) {
   const visibleShots = shotHistory.slice(-5); // Letzte 5 Schläge
   
@@ -67,10 +110,7 @@ function TrailLines({ shotHistory }: { shotHistory: ShotData[] }) {
         
         const isLatest = index === visibleShots.length - 1;
         const opacity = isLatest ? 1.0 : 0.5;
-        const lineWidth = isLatest ? 2 : 1;
-        
-        // Konvertiere Vector3 Array zu Number Array für Line Component
-        const points = shot.trajectory.map(p => [p.x, p.y, p.z]).flat();
+        const lineWidth = isLatest ? 3 : 2;
         
         return (
           <Line
@@ -143,66 +183,94 @@ function DrivingRange3D({ currentTrajectory, shotHistory, onAnimationComplete }:
 }) {
   return (
     <div className="canvas-container">
-      <Canvas camera={{ position: [5, 10, 20], fov: 60 }}>
-        <Sky sunPosition={[100, 20, 100]} />
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
+      <Canvas 
+        camera={{ position: [5, 10, 20], fov: 60 }}
+        shadows
+      >
+        <Sky 
+          distance={450000}
+          sunPosition={[100, 50, 100]} 
+          inclination={0.6}
+          azimuth={0.25}
+        />
         
-        <Grid 
-          args={[300, 300]} 
-          cellSize={1}
-          cellThickness={0.5}
-          cellColor="#6f6f6f"
-          sectionSize={10}
-          sectionThickness={1}
-          sectionColor="#9d9d9d"
-          fadeDistance={300}
-          fadeStrength={1}
-          followCamera={false}
+        <ambientLight intensity={0.6} />
+        <directionalLight 
+          position={[50, 50, 25]} 
+          intensity={1} 
+          castShadow
+          shadow-mapSize-width={2048}
+          shadow-mapSize-height={2048}
+        />
+        
+        {/* Grüner Gras-Boden */}
+        <GrassGround />
+        
+        {/* Grid Lines für Distanz-Referenz */}
+        <gridHelper 
+          args={[500, 50, '#ffffff', '#ffffff']} 
+          position={[0, 0.01, -150]}
+          rotation={[0, 0, 0]}
         />
         
         {/* Target Flags at different distances */}
-        <mesh position={[0, 2, -50]}>
-          <cylinderGeometry args={[0.05, 0.05, 4]} />
-          <meshStandardMaterial color="red" />
-        </mesh>
-        <mesh position={[0, 4, -50]}>
-          <boxGeometry args={[0.5, 0.3, 0.1]} />
-          <meshStandardMaterial color="red" />
-        </mesh>
-        
-        <mesh position={[0, 2, -100]}>
-          <cylinderGeometry args={[0.05, 0.05, 4]} />
-          <meshStandardMaterial color="yellow" />
-        </mesh>
-        
-        <mesh position={[0, 2, -150]}>
-          <cylinderGeometry args={[0.05, 0.05, 4]} />
-          <meshStandardMaterial color="white" />
-        </mesh>
-        
-        <mesh position={[0, 2, -200]}>
-          <cylinderGeometry args={[0.05, 0.05, 4]} />
-          <meshStandardMaterial color="blue" />
-        </mesh>
+        <group>
+          {/* 50m Flag */}
+          <mesh position={[0, 2, -50]}>
+            <cylinderGeometry args={[0.05, 0.05, 4]} />
+            <meshStandardMaterial color="red" />
+          </mesh>
+          <mesh position={[0, 4, -50]}>
+            <boxGeometry args={[0.8, 0.5, 0.05]} />
+            <meshStandardMaterial color="red" />
+          </mesh>
+          
+          {/* 100m Flag */}
+          <mesh position={[0, 2, -100]}>
+            <cylinderGeometry args={[0.05, 0.05, 4]} />
+            <meshStandardMaterial color="yellow" />
+          </mesh>
+          <mesh position={[0, 4, -100]}>
+            <boxGeometry args={[0.8, 0.5, 0.05]} />
+            <meshStandardMaterial color="yellow" />
+          </mesh>
+          
+          {/* 150m Flag */}
+          <mesh position={[0, 2, -150]}>
+            <cylinderGeometry args={[0.05, 0.05, 4]} />
+            <meshStandardMaterial color="white" />
+          </mesh>
+          
+          {/* 200m Flag */}
+          <mesh position={[0, 2, -200]}>
+            <cylinderGeometry args={[0.05, 0.05, 4]} />
+            <meshStandardMaterial color="blue" />
+          </mesh>
+          
+          {/* 250m Flag */}
+          <mesh position={[0, 2, -250]}>
+            <cylinderGeometry args={[0.05, 0.05, 4]} />
+            <meshStandardMaterial color="purple" />
+          </mesh>
+        </group>
         
         {/* Trail Lines für vorherige Schläge */}
         <TrailLines shotHistory={shotHistory} />
         
         {/* Animierter Golfball */}
-        {currentTrajectory.length > 0 && (
-          <AnimatedGolfBall 
-            trajectory={currentTrajectory} 
-            onAnimationComplete={onAnimationComplete}
-          />
-        )}
+        <AnimatedGolfBall 
+          trajectory={currentTrajectory} 
+          onAnimationComplete={onAnimationComplete}
+        />
         
         <OrbitControls 
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
           maxPolarAngle={Math.PI / 2.1}
-          target={[0, 0, -75]}
+          target={[0, 0, -100]}
+          minDistance={10}
+          maxDistance={200}
         />
       </Canvas>
       
@@ -217,33 +285,32 @@ function DrivingRange3D({ currentTrajectory, shotHistory, onAnimationComplete }:
   );
 }
 
-// Realistische Ballflug-Berechnung
+// Realistische Ballflug-Berechnung mit Roll
 function calculateRealisticTrajectory(data: ShotData): THREE.Vector3[] {
   const points: THREE.Vector3[] = [];
-  const distance = data.carry;
+  const carry = data.carry;
+  const total = data.total;
   const apex = data.apex;
   const side = data.side;
   const launchAngle = data.launchAngle * Math.PI / 180;
   
   // Physik-Parameter
-  const g = 9.81; // Gravity
+  const g = 9.81;
   const v0 = data.ballSpeed / 3.6; // km/h to m/s
   const vx = v0 * Math.cos(launchAngle);
   const vy = v0 * Math.sin(launchAngle);
   
-  // Spin-Effekt (Magnus)
-  const spinEffect = data.spinRate / 10000; // Vereinfacht
+  // Flugphase (bis Carry-Distanz)
+  const flightTime = (2 * vy) / g; // Zeit in der Luft
+  const flightSteps = 80; // Punkte für Flugphase
   
-  // Zeit bis zum Aufprall berechnen
-  const totalTime = distance / vx;
-  const steps = 100; // Mehr Punkte für smoothe Kurve
-  
-  for (let i = 0; i <= steps; i++) {
-    const t = (i / steps) * totalTime;
+  for (let i = 0; i <= flightSteps; i++) {
+    const t = (i / flightSteps) * flightTime;
+    const progress = i / flightSteps;
     
     // Position berechnen
-    const x = side * (t / totalTime) + (side * spinEffect * Math.sin(t * 2)); // Seitliche Kurve
-    const z = -vx * t; // Distanz
+    const x = side * progress; // Seitliche Bewegung
+    const z = -carry * progress; // Distanz
     let y = vy * t - 0.5 * g * t * t; // Höhe mit Gravitation
     
     // Sicherstellen dass Ball nicht unter Boden geht
@@ -252,14 +319,31 @@ function calculateRealisticTrajectory(data: ShotData): THREE.Vector3[] {
     points.push(new THREE.Vector3(x, y, z));
   }
   
+  // Rollphase (von Carry bis Total) - nur auf dem Boden
+  const rollDistance = total - carry;
+  if (rollDistance > 0) {
+    const rollSteps = 20;
+    for (let i = 1; i <= rollSteps; i++) {
+      const progress = i / rollSteps;
+      const rollDeceleration = 1 - (progress * progress); // Quadratische Verlangsamung
+      
+      const x = side + (side * 0.1 * progress); // Leichte weitere Seitbewegung
+      const z = -carry - (rollDistance * progress * rollDeceleration);
+      const y = 0.15; // Ball-Radius über Boden
+      
+      points.push(new THREE.Vector3(x, y, z));
+    }
+  }
+  
   return points;
 }
 
 // Random Test Shot Generator
 function generateRandomShot(): ShotData {
+  const carry = 120 + Math.random() * 80; // 120-200m
   return {
-    carry: 120 + Math.random() * 80, // 120-200m
-    total: 130 + Math.random() * 90, // 130-220m
+    carry: carry,
+    total: carry + 5 + Math.random() * 15, // 5-20m Roll
     ballSpeed: 180 + Math.random() * 60, // 180-240 km/h
     launchAngle: 8 + Math.random() * 12, // 8-20 degrees
     spinRate: 2000 + Math.random() * 2000, // 2000-4000 rpm
@@ -300,7 +384,7 @@ function App() {
   }, []);
   
   const processShot = (data: ShotData) => {
-    if (isAnimating) return; // Warte bis aktuelle Animation fertig ist
+    if (isAnimating) return;
     
     const trajectory = calculateRealisticTrajectory(data);
     data.trajectory = trajectory;
@@ -310,20 +394,20 @@ function App() {
     setIsAnimating(true);
   };
   
- const handleAnimationComplete = () => {
-  if (currentShotData) {
-    setShotHistory(prev => [...prev, currentShotData]);
-  }
-  setIsAnimating(false);
-  setCurrentTrajectory([]); // Clear trajectory nach Animation
-};
+  const handleAnimationComplete = () => {
+    if (currentShotData) {
+      setShotHistory(prev => [...prev, currentShotData]);
+    }
+    setIsAnimating(false);
+    // Ball bleibt am Ende sichtbar
+  };
   
-  // Test Shot Button - jedes Mal andere Werte
+  // Test Shot Button
   const sendTestShot = () => {
-    if (isAnimating) return; // Nicht während Animation
+    if (isAnimating) return;
     
     const testData = generateRandomShot();
-    // Runde die Werte für bessere Anzeige
+    // Runde die Werte
     testData.carry = Math.round(testData.carry);
     testData.total = Math.round(testData.total);
     testData.ballSpeed = Math.round(testData.ballSpeed);
